@@ -1,11 +1,17 @@
 import { useState, useRef, useEffect } from "react";
-import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Home, Star, History, Download, Settings } from "lucide-react";
+import { ArrowLeft, ArrowRight, RotateCw, X, Plus, Home, Star, History, Settings } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+// Ultraviolet proxy configuration
+declare global {
+  interface Window {
+    __uv$config: any;
+  }
+}
 
 interface Tab {
   id: number;
@@ -53,6 +59,23 @@ const Browser = () => {
     localStorage.setItem('browser_history', JSON.stringify(browserHistory));
   }, [browserHistory]);
 
+  // Register Ultraviolet service worker
+  useEffect(() => {
+    const registerSW = async () => {
+      if ('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.register('/uv-sw.js', {
+            scope: '/uv/service/'
+          });
+          console.log('UV Service Worker registered:', registration);
+        } catch (error) {
+          console.error('UV Service Worker registration failed:', error);
+        }
+      }
+    };
+    registerSW();
+  }, []);
+
   // Load initial URL from navigation state
   useEffect(() => {
     if (initialUrl && activeTab) {
@@ -82,62 +105,79 @@ const Browser = () => {
 
     setLoading(true);
     setError(null);
-    
-    // Update tab immediately to show we're loading
-    setTabs(prev => prev.map(tab => {
-      if (tab.id === tabId) {
-        const newHistory = tab.history.slice(0, tab.historyIndex + 1);
-        newHistory.push(url);
-        return {
-          ...tab,
+
+    try {
+      // Encode URL using Ultraviolet
+      const uvPrefix = '/uv/service/';
+      
+      // Simple XOR encoding for the URL (Ultraviolet's default)
+      const xorEncode = (str: string) => {
+        return encodeURIComponent(
+          str.split('').map((char, ind) => 
+            ind % 2 ? String.fromCharCode(char.charCodeAt(0) ^ 2) : char
+          ).join('')
+        );
+      };
+
+      const proxiedUrl = uvPrefix + xorEncode(url);
+      
+      // Update tab with new URL and history
+      setTabs(prev => prev.map(tab => {
+        if (tab.id === tabId) {
+          const newHistory = tab.history.slice(0, tab.historyIndex + 1);
+          newHistory.push(url);
+          return {
+            ...tab,
+            url,
+            title: new URL(url).hostname,
+            history: newHistory,
+            historyIndex: newHistory.length - 1
+          };
+        }
+        return tab;
+      }));
+
+      // Add to browser history (no duplicates)
+      const hostname = new URL(url).hostname;
+      setBrowserHistory(prev => {
+        const existing = prev.find(h => h.url === url);
+        if (existing) return prev;
+        
+        return [{
           url,
-          title: "Loading...",
-          history: newHistory,
-          historyIndex: newHistory.length - 1
-        };
-      }
-      return tab;
-    }));
+          title: hostname,
+          timestamp: Date.now()
+        }, ...prev.slice(0, 99)];
+      });
 
-    // DON'T add to bookmarks - only add to history
-    const hostname = new URL(url).hostname;
-    setBrowserHistory(prev => {
-      // Check if this URL is already in recent history to avoid duplicates
-      const existing = prev.find(h => h.url === url);
-      if (existing) return prev;
-      
-      return [{
-        url,
-        title: hostname,
-        timestamp: Date.now()
-      }, ...prev.slice(0, 99)];
-    });
-
-    // Load directly in iframe
-    if (iframeRef.current) {
-      iframeRef.current.src = url;
-      
-      iframeRef.current.onload = () => {
-        try {
-          const title = iframeRef.current?.contentDocument?.title || hostname;
-          setTabs(prev => prev.map(tab => 
-            tab.id === tabId ? { ...tab, title } : tab
-          ));
+      // Load proxied URL in iframe
+      if (iframeRef.current) {
+        iframeRef.current.src = proxiedUrl;
+        
+        iframeRef.current.onload = () => {
+          try {
+            const title = iframeRef.current?.contentDocument?.title || hostname;
+            setTabs(prev => prev.map(tab => 
+              tab.id === tabId ? { ...tab, title } : tab
+            ));
+          } catch (e) {
+            setTabs(prev => prev.map(tab => 
+              tab.id === tabId ? { ...tab, title: hostname } : tab
+            ));
+          }
           setLoading(false);
           setError(null);
-        } catch (e) {
-          setTabs(prev => prev.map(tab => 
-            tab.id === tabId ? { ...tab, title: hostname } : tab
-          ));
-          setLoading(false);
-        }
-      };
+        };
 
-      iframeRef.current.onerror = () => {
-        setError(`Unable to load ${hostname}. This site blocks browser embedding.`);
-        setLoading(false);
-        toast.error(`${hostname} refused to connect`);
-      };
+        iframeRef.current.onerror = () => {
+          setError(`Unable to load ${hostname}`);
+          setLoading(false);
+        };
+      }
+    } catch (error) {
+      console.error('Error loading URL:', error);
+      setError('Failed to load page');
+      setLoading(false);
     }
   };
 
@@ -406,28 +446,6 @@ const Browser = () => {
             <div className="text-center space-y-6 max-w-md">
               <h2 className="text-3xl font-semibold">New Tab</h2>
               <p className="text-muted-foreground">Search Google or enter a URL to browse the web</p>
-              
-              {bookmarks.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-muted-foreground">Quick Access</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {bookmarks.slice(0, 4).map((bookmark, i) => (
-                      <Button
-                        key={i}
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => {
-                          setUrlInput(bookmark);
-                          loadUrl(bookmark, activeTab.id);
-                        }}
-                      >
-                        <Star className="h-3 w-3 mr-2 fill-primary" />
-                        {new URL(bookmark).hostname}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
               
               <Button 
                 onClick={() => navigate('/')}
