@@ -13,6 +13,7 @@ import Signup from "./pages/Signup";
 import Account from "./pages/Account";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import Browser from "./pages/Browser";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/games" element={<Games />} />
           <Route path="/apps" element={<Apps />} />
+          <Route path="/browser" element={<Browser />} />
           <Route path="/help" element={<Help />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/auth" element={<Auth />} />
