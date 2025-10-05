@@ -554,7 +554,7 @@
   },
   {
     "name": "Doge 2048",
-    "icon": "https://hideout-games.vercel.app/doge2048/doge1.jpeg,
+    "icon": "https://hideout-games.vercel.app/doge2048/doge1.jpeg",
     "popularity": [],
     "categories": ["Puzzle"],
     "gameLink": "https://hideout-games.vercel.app/doge2048/index.html"
