@@ -1,0 +1,4 @@
+project_id = "ezxrjflznhydrmmblxni"
+
+[functions.http-proxy]
+verify_jwt = false
