@@ -12,15 +12,23 @@ export const BrowserSettings = () => {
   const [usePreferredBrowser, setUsePreferredBrowser] = useState(false);
 
   useEffect(() => {
-    const savedSettings = localStorage.getItem('hideout_browser_settings');
-    if (savedSettings) {
-      try {
-        const settings = JSON.parse(savedSettings);
-        setHomePage(settings.homePage || "hideout://newtab");
-        setUsePreferredBrowser(settings.usePreferredBrowser || false);
-      } catch (error) {
-        console.error('Error loading browser settings:', error);
+    try {
+      let settingsStr: string | null = null;
+      const storedUser = localStorage.getItem('hideout_user') || sessionStorage.getItem('hideout_user');
+      if (storedUser) {
+        try {
+          const { id } = JSON.parse(storedUser);
+          if (id) settingsStr = localStorage.getItem(`hideout_browser_settings_${id}`);
+        } catch {}
       }
+      if (!settingsStr) settingsStr = localStorage.getItem('hideout_browser_settings');
+      if (settingsStr) {
+        const settings = JSON.parse(settingsStr);
+        setHomePage(settings.homePage || "hideout://newtab");
+        setUsePreferredBrowser(!!settings.usePreferredBrowser);
+      }
+    } catch (error) {
+      console.error('Error loading browser settings:', error);
     }
   }, []);
 
