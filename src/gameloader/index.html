@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #0a0a0a;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            color: #ffffff;
+        }
+
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 50px;
+        }
+
+        .circle-container {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            z-index: 1;
+        }
+
+        .circle-image {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            background-color: #1a1a1a;
+            border: 3px solid #1a1a1a;
+            filter: blur(2px);
+        }
+
+        .loading-ring {
+            position: absolute;
+            top: -12px;
+            left: -12px;
+            width: 304px;
+            height: 304px;
+            border-radius: 50%;
+            z-index: 2;
+        }
+
+        .loading-ring svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+            shape-rendering: geometricPrecision;
+        }
+
+        .loading-ring circle {
+            fill: none;
+            stroke-width: 6;
+        }
+
+        .loading-ring .bg-circle {
+            stroke: #1a1a1a;
+            stroke-linecap: butt;
+        }
+
+        .loading-ring .progress-circle {
+            stroke: #16a249;
+            stroke-linecap: butt;
+            stroke-dasharray: 930;
+            stroke-dashoffset: 930;
+            animation: loadProgress 15s linear forwards;
+            filter: drop-shadow(0 0 12px rgba(22, 162, 73, 0.8)) drop-shadow(0 0 20px rgba(22, 162, 73, 0.4)) drop-shadow(0 0 30px rgba(22, 162, 73, 0.2));
+            stroke-linejoin: miter;
+        }
+
+        @keyframes loadProgress {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .game-name {
+            color: #ffffff;
+            font-size: 48px;
+            font-weight: 600;
+            text-align: center;
+            letter-spacing: -0.5px;
+            text-shadow: none;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background-color: #16a249;
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow: 0 0 8px rgba(22, 162, 73, 1), 0 0 12px rgba(22, 162, 73, 0.6);
+            z-index: 999;
+        }
+
+        .percentage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            font-weight: 700;
+            color: #16a249;
+            text-shadow:
+                2px 2px 6px rgba(0, 0, 0, 0.9),
+                3px 3px 10px rgba(0, 0, 0, 0.7);
+            z-index: 10;
+        }
+
+        @keyframes particleFade {
+            0% {
+                opacity: 1;
+                transform: translate(0, 0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(var(--tx), var(--ty)) scale(0.1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-container">
+        <div class="circle-container">
+            <div class="percentage" id="percentageDisplay">0%</div>
+            <img id="gameImage" class="circle-image" alt="Game">
+            <div class="loading-ring">
+                <svg>
+                    <circle class="bg-circle" cx="152" cy="152" r="148"></circle>
+                    <circle class="progress-circle" cx="152" cy="152" r="148"></circle>
+                </svg>
+            </div>
+        </div>
+        <div>
+            <div class="game-name" id="gameNameDisplay"></div>
+        </div>
+    </div>
+
+    <script>
+        // Variables - Easy to change
+        const gamename = "Aquapark Slides";
+        const gameimg = "https://hideout-games.vercel.app/aquapark-slides/splash.png";
+
+        // Set the game name and image
+        document.getElementById('gameNameDisplay').textContent = gamename;
+        const imgElement = document.getElementById('gameImage');
+        imgElement.src = gameimg;
+        
+        // Error handling for image loading
+        imgElement.onerror = function() {
+            console.error('Failed to load image from:', gameimg);
+            this.style.backgroundColor = '#1a1a1a';
+        };
+        
+        imgElement.onload = function() {
+            console.log('Image loaded successfully');
+        };
+
+        // Particle effect
+        const loadingRing = document.querySelector('.loading-ring');
+        
+        const svgCenterX = 152; 
+        const svgCenterY = 152; 
+        const circleRadius = 148; 
+        
+        let progress = 0;
+        const duration = 15000; 
+        const startTime = Date.now();
+
+        function createParticle(angle) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            
+            const offsetAngle = angle - 0.02; 
+            const x = svgCenterX + circleRadius * Math.cos(offsetAngle);
+            const y = svgCenterY + circleRadius * Math.sin(offsetAngle);
+            
+            const tangentAngle = offsetAngle + Math.PI / 2;
+            const sideSpread = (Math.random() - 0.5) * 2;
+            const backwardSpread = Math.random() * 0.8;
+            
+            const finalAngle = tangentAngle * sideSpread + (offsetAngle + Math.PI) * backwardSpread;
+            const distance = 10 + Math.random() * 25;
+            
+            const outwardX = Math.cos(finalAngle) * distance;
+            const outwardY = Math.sin(finalAngle) * distance;
+            
+            particle.style.setProperty('--tx', outwardX + 'px');
+            particle.style.setProperty('--ty', outwardY + 'px');
+            particle.style.left = x + 'px';
+            particle.style.top = y + 'px';
+            particle.style.animation = 'particleFade 0.5s ease-out forwards';
+            
+            loadingRing.appendChild(particle);
+            
+            setTimeout(() => particle.remove(), 500);
+        }
+
+        function animateParticles() {
+            const elapsed = Date.now() - startTime;
+            progress = Math.min(elapsed / duration, 1);
+            
+            const percentage = Math.floor(progress * 100);
+            document.getElementById('percentageDisplay').textContent = percentage + '%';
+            
+            if (progress < 1) {
+                const currentAngle = -Math.PI / 2 + (progress * 2 * Math.PI);
+                
+                for (let i = 0; i < 4; i++) {
+                    createParticle(currentAngle);
+                }
+                
+                requestAnimationFrame(animateParticles);
+            } else {
+                document.getElementById('percentageDisplay').textContent = '100%';
+            }
+        }
+
+        animateParticles();
+    </script>
+</body>
+</html>
