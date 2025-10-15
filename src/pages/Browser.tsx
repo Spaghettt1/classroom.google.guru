@@ -7,11 +7,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { TabBar } from "@/components/browser/TabBar";
 import { NavigationBar } from "@/components/browser/NavigationBar";
 import { BrowserHelp } from "@/components/browser/BrowserHelp";
-import { BrowserSettings } from "@/components/browser/BrowserSettings";
 import { BrowserHistory } from "@/components/browser/BrowserHistory";
 import { supabase } from "@/integrations/supabase/client";
 import { GlobalChat } from "@/components/GlobalChat";
 import { DevTools } from "@/components/DevTools";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 // Browser configuration
 
@@ -27,6 +27,7 @@ interface Tab {
 }
 
 const Browser = () => {
+  usePageTitle('Browser');
   const navigate = useNavigate();
   const location = useLocation();
   const initialUrl = (location.state as { initialUrl?: string })?.initialUrl;
@@ -267,6 +268,33 @@ const Browser = () => {
         throw new Error((data as any)?.error || error?.message || 'Failed to load page via pr0xy');
       }
 
+      // Inject script to intercept link clicks and keep navigation within hideout
+      let modifiedHtml = data.html;
+      const linkInterceptScript = `
+        <script>
+          (function() {
+            // Intercept all link clicks to navigate within hideout
+            document.addEventListener('click', function(e) {
+              const target = e.target.closest('a');
+              if (target && target.href) {
+                e.preventDefault();
+                e.stopPropagation();
+                // Post message to parent to navigate
+                window.parent.postMessage({ type: 'hideout:navigate', url: target.href }, '*');
+                return false;
+              }
+            }, true);
+          })();
+        </script>
+      `;
+      
+      // Insert script before closing body tag or at end
+      if (modifiedHtml.includes('</body>')) {
+        modifiedHtml = modifiedHtml.replace('</body>', linkInterceptScript + '</body>');
+      } else {
+        modifiedHtml = modifiedHtml + linkInterceptScript;
+      }
+
       // Update tab with srcDoc HTML
       setTabs(prev => prev.map(tab => {
         if (tab.id === tabId) {
@@ -276,7 +304,7 @@ const Browser = () => {
             ...tab,
             url,
             proxiedUrl: '',
-            proxiedHtml: data.html,
+            proxiedHtml: modifiedHtml,
             title: hostname,
             history: newHistory,
             historyIndex: newHistory.length - 1
@@ -527,13 +555,7 @@ const Browser = () => {
     }
   };
 
-  const handleSettingsClick = () => {
-    const url = "hideout://settings";
-    setUrlInput(url);
-    if (activeTab) {
-      loadUrl(url, activeTab.id);
-    }
-  };
+  // Removed - BrowserSettings deleted
 
   const handleHelpClick = () => {
     const url = "hideout://help";
@@ -567,50 +589,91 @@ const Browser = () => {
     toast.success("All tabs closed");
   };
 
-  // Keyboard shortcuts + DevTools toggle
+  // Listen for navigation messages from iframes
   useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'hideout:navigate' && event.data?.url) {
+        const url = event.data.url;
+        setUrlInput(url);
+        if (activeTab) {
+          loadUrl(url, activeTab.id);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [activeTab]);
+
+  // Keyboard shortcuts + DevTools toggle (Alt+Z+key)
+  useEffect(() => {
+    let altZPressed = false;
+    
     const handleKeyDown = (e: KeyboardEvent) => {
-      // F12 or Ctrl+Shift+I for DevTools
-      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+      // Alt+Z combo system
+      if (e.altKey && e.key === 'z') {
         e.preventDefault();
-        setShowDevTools(prev => !prev);
+        altZPressed = true;
+        toast.info("Press a shortcut key...", { duration: 2000 });
+        setTimeout(() => { altZPressed = false; }, 2000);
         return;
       }
 
-      if (e.altKey) {
+      // Check if Alt+Z was recently pressed
+      if (altZPressed) {
+        e.preventDefault();
+        altZPressed = false;
+
+        // Alt+Z+I for DevTools
+        if (e.key === 'i') {
+          setShowDevTools(prev => !prev);
+          return;
+        }
+
+        // Alt+Z+F for Fullscreen Tab
+        if (e.key === 'f') {
+          window.dispatchEvent(new CustomEvent('hideout:fullscreen-tab'));
+          return;
+        }
+
+        // Alt+Z+T for new tab
         if (e.key === 't') {
-          e.preventDefault();
           addTab();
-        } else if (e.key === 'w') {
-          e.preventDefault();
+          return;
+        }
+
+        // Alt+Z+W for close tab
+        if (e.key === 'w') {
           if (activeTab) closeTab(activeTab.id);
-        } else if (e.key === 'r') {
-          e.preventDefault();
+          return;
+        }
+
+        // Alt+Z+R for reload
+        if (e.key === 'r') {
           handleReload();
-        } else if (e.key === 'l') {
-          e.preventDefault();
+          return;
+        }
+
+        // Alt+Z+L for focus address bar
+        if (e.key === 'l') {
           const input = document.querySelector('input[type="text"]') as HTMLInputElement;
           input?.focus();
-        } else if (e.key === 'ArrowLeft') {
-          e.preventDefault();
-          handleBack();
-        } else if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          handleForward();
-        } else if (e.shiftKey && e.key === 'T') {
-          e.preventDefault();
-          reopenClosedTab();
-        } else if (e.key === 'Tab') {
-          e.preventDefault();
-          const currentIndex = tabs.findIndex(t => t.id === activeTabId);
-          if (e.shiftKey) {
-            const prevIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1;
-            setActiveTabId(tabs[prevIndex].id);
-          } else {
-            const nextIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0;
-            setActiveTabId(tabs[nextIndex].id);
-          }
+          return;
         }
+
+        // Alt+Z+Left for back
+        if (e.key === 'ArrowLeft') {
+          handleBack();
+          return;
+        }
+
+        // Alt+Z+Right for forward
+        if (e.key === 'ArrowRight') {
+          handleForward();
+          return;
+        }
+
+        return;
       }
     };
 
@@ -618,11 +681,26 @@ const Browser = () => {
       setShowDevTools(prev => !prev);
     };
 
+    const handleFullscreenTab = () => {
+      const iframe = iframeRef.current;
+      if (iframe && !isInternalPage(activeTab?.url || '') && activeTab?.url) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else if (iframe.requestFullscreen) {
+          iframe.requestFullscreen();
+        }
+      } else {
+        toast.info("Load a page first to fullscreen");
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('hideout:toggle-devtools', handleDevToolsToggle);
+    window.addEventListener('hideout:fullscreen-tab', handleFullscreenTab);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('hideout:toggle-devtools', handleDevToolsToggle);
+      window.removeEventListener('hideout:fullscreen-tab', handleFullscreenTab);
     };
   }, [activeTab, tabs, activeTabId]);
   
@@ -680,7 +758,7 @@ const Browser = () => {
         onClearBookmarks={clearBookmarks}
         onClearHistory={clearHistory}
         onSelectUrl={handleSelectUrl}
-        onSettingsClick={handleSettingsClick}
+        onSettingsClick={() => {}} // Removed browser settings
         onHelpClick={handleHelpClick}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
@@ -714,7 +792,6 @@ const Browser = () => {
           isInternalPage(activeTab?.url || '') ? (
             <div className="w-full h-full overflow-y-auto">
               {activeTab?.url === 'hideout://help' && <BrowserHelp />}
-              {activeTab?.url === 'hideout://settings' && <BrowserSettings />}
               {activeTab?.url === 'hideout://history' && (
                 <BrowserHistory 
                   history={browserHistory}

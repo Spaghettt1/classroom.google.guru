@@ -1,8 +1,10 @@
 import { Navigation } from "@/components/Navigation";
 import { GlobalChat } from "@/components/GlobalChat";
 import { Card } from "@/components/ui/card";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 const Terms = () => {
+  usePageTitle('Terms of Service');
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -91,22 +93,37 @@ const Terms = () => {
               </section>
 
               <section>
-                <h2 className="text-2xl font-bold mb-3">8. Email Communications</h2>
+                <h2 className="text-2xl font-bold mb-3">8. Data Storage and Privacy</h2>
+                <ul className="list-disc list-inside space-y-1 ml-4">
+                  <li>We store minimal user data required for service operation</li>
+                  <li>Passwords are encrypted using industry-standard methods</li>
+                  <li>We do not sell or share your personal information</li>
+                  <li>Inactive accounts are deleted after 2 weeks of inactivity</li>
+                  <li>Game and app favorites are stored per user account</li>
+                  <li>Chat messages are limited to the last 100 messages globally</li>
+                  <li className="font-medium">All user data including cookies and local storage is saved to your account when you sign up</li>
+                  <li className="font-medium">Third-party cookies from websites visited through our browser are stored when using a signed-in account</li>
+                  <li>Browser data (tabs, bookmarks, history, settings) is synced across your devices</li>
+                </ul>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-bold mb-3">9. Email Communications</h2>
                 <p className="mb-2">By using our service:</p>
                 <ul className="list-disc list-inside space-y-1 ml-4">
                   <li>You may receive newsletters and promotional emails (enabled by default)</li>
-                  <li>You can opt out of newsletters at any time via Email Settings</li>
+                  <li>You can opt out of newsletters at any time via Settings</li>
                   <li>Important service-related emails (such as security alerts) cannot be disabled</li>
                 </ul>
               </section>
 
               <section>
-                <h2 className="text-2xl font-bold mb-3">9. Changes to Terms</h2>
+                <h2 className="text-2xl font-bold mb-3">10. Changes to Terms</h2>
                 <p>We reserve the right to modify these terms at any time. Continued use of the service after changes constitutes acceptance of the new terms.</p>
               </section>
 
               <section>
-                <h2 className="text-2xl font-bold mb-3">10. Intellectual Property</h2>
+                <h2 className="text-2xl font-bold mb-3">11. Intellectual Property</h2>
                 <p className="mb-2">All content and functionality on Hideout Network, including but not limited to:</p>
                 <ul className="list-disc list-inside space-y-1 ml-4">
                   <li>Website design, layout, and graphics</li>

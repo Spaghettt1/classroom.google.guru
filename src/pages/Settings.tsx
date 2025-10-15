@@ -10,6 +10,45 @@ import { Separator } from "@/components/ui/separator";
 import { Settings as SettingsIcon, Bell, Palette, Database, Trash2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { usePageTitle } from "@/hooks/use-page-title";
+
+const EmailSettingsToggle = () => {
+  const [newslettersEnabled, setNewslettersEnabled] = useState(true);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('hideout_email_settings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setNewslettersEnabled(parsed.newsletters !== undefined ? parsed.newsletters : true);
+      } catch {
+        setNewslettersEnabled(true);
+      }
+    }
+  }, []);
+
+  const handleChange = (checked: boolean) => {
+    setNewslettersEnabled(checked);
+    const settings = { newsletters: checked };
+    localStorage.setItem('hideout_email_settings', JSON.stringify(settings));
+    toast.success("Email settings updated", { duration: 5000 });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <Label>Newsletters</Label>
+          <p className="text-sm text-muted-foreground">Receive updates, news, and special offers</p>
+        </div>
+        <Switch 
+          checked={newslettersEnabled} 
+          onCheckedChange={handleChange}
+        />
+      </div>
+    </div>
+  );
+};
 
 type SettingsData = {
   reducedMotion: boolean;
@@ -20,6 +59,7 @@ type SettingsData = {
 };
 
 const Settings = () => {
+  usePageTitle('Settings');
   const location = useLocation();
   const fromBrowser = (location.state as { fromBrowser?: boolean })?.fromBrowser;
   const [user, setUser] = useState<any>(null);
@@ -259,26 +299,6 @@ const Settings = () => {
                   Clear Cache
                 </Button>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Local Storage</Label>
-                  <p className="text-sm text-muted-foreground">This will log you out</p>
-                </div>
-                <Button variant="outline" size="sm" onClick={handleClearLocalStorage} className="gap-2">
-                  <Trash2 className="w-4 h-4" />
-                  Clear Storage
-                </Button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Cookies</Label>
-                  <p className="text-sm text-muted-foreground">This will log you out</p>
-                </div>
-                <Button variant="outline" size="sm" onClick={handleClearCookies} className="gap-2">
-                  <Trash2 className="w-4 h-4" />
-                  Clear Cookies
-                </Button>
-              </div>
             </div>
           </Card>
 
@@ -313,20 +333,15 @@ const Settings = () => {
             )}
           </Card>
 
-          {/* Email Settings Link */}
-          <Link to="/email-settings">
-            <Card className="p-4 sm:p-6 bg-card border-border hover:border-primary/50 transition-colors cursor-pointer">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Mail className="w-5 h-5 text-primary" />
-                  <div>
-                    <h2 className="text-lg sm:text-xl font-semibold">Email Settings</h2>
-                    <p className="text-sm text-muted-foreground">Manage newsletter and email preferences</p>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </Link>
+          {/* Email Settings */}
+          <Card className="p-4 sm:p-6 bg-card border-border mt-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Mail className="w-5 h-5 text-primary" />
+              <h2 className="text-lg sm:text-xl font-semibold">Email Settings</h2>
+            </div>
+            <Separator className="mb-4" />
+            <EmailSettingsToggle />
+          </Card>
 
           {/* Save Button */}
           <div className="flex flex-col sm:flex-row justify-end gap-3">

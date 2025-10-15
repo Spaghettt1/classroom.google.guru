@@ -9,6 +9,7 @@ import { useUserData } from "@/hooks/use-user-data";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Trash2, Key } from "lucide-react";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import { usePageTitle } from "@/hooks/use-page-title";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const Account = () => {
+  usePageTitle('Account');
   const navigate = useNavigate();
   const { toast } = useToast();
   const { clearLocalData } = useUserData();

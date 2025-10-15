@@ -10,8 +10,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserData } from "@/hooks/use-user-data";
 import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 const Auth = () => {
+  usePageTitle('Login');
   const navigate = useNavigate();
   const { toast } = useToast();
   const { loadFromAccount: loadData } = useUserData();

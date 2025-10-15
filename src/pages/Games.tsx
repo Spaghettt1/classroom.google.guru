@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Search, TrendingUp, Flame, Heart, Sparkles, Filter, Maximize } from "lucide-react";
 import { GlobalChat } from "@/components/GlobalChat";
+import { usePageTitle } from "@/hooks/use-page-title";
+import { GameLoader } from "@/components/GameLoader";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +47,8 @@ const getBadgeConfig = (popularity: string) => {
 const Games = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const gameParam = searchParams.get("game");
+  const currentGameName = gameParam ? games.find(g => g.name.toLowerCase().replace(/\s+/g, '-') === gameParam)?.name : null;
+  usePageTitle(currentGameName || 'Games');
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [currentGame, setCurrentGame] = useState<Game | null>(null);
@@ -53,6 +57,7 @@ const Games = () => {
   const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 0 });
   const [iconsLoaded, setIconsLoaded] = useState<Record<string, boolean>>({});
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [showGameLoader, setShowGameLoader] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -61,9 +66,11 @@ const Games = () => {
         (g) => g.name.toLowerCase().replace(/\s+/g, '-') === gameParam
       );
       setCurrentGame(foundGame || null);
+      setShowGameLoader(true);
       setIsLoading(false);
     } else {
       setCurrentGame(null);
+      setShowGameLoader(false);
       // Quick load without progress counter (reverted behavior)
       const loadIcons = async () => {
         setIsLoading(true);
@@ -254,7 +261,14 @@ const Games = () => {
             </div>
             
             {/* Game Iframe */}
-            <div className="w-full bg-card rounded-lg overflow-hidden border border-border" style={{ aspectRatio: '16/9' }}>
+            <div className="w-full bg-card rounded-lg overflow-hidden border border-border relative" style={{ aspectRatio: '16/9' }}>
+              {showGameLoader && (
+                <GameLoader
+                  gameName={currentGame.name}
+                  gameImage={currentGame.icon}
+                  onLoadComplete={() => setShowGameLoader(false)}
+                />
+              )}
               <iframe
                 id="game-iframe"
                 src={currentGame.gameLink}
@@ -268,7 +282,8 @@ const Games = () => {
             <div className="w-full bg-card rounded-lg border border-border p-4 flex gap-3">
               <Button
                 onClick={handleFullscreen}
-                className="gap-2 hover:scale-105 transition-transform"
+                disabled={showGameLoader}
+                className="gap-2 hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Maximize className="w-4 h-4" />
                 Fullscreen

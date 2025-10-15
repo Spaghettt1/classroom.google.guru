@@ -1,5 +1,6 @@
 import { Navigation } from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
+import { usePageTitle } from "@/hooks/use-page-title";
 import {
   Accordion,
   AccordionContent,
@@ -10,6 +11,7 @@ import { HelpCircle, Mail, MessageCircle, BookOpen, Globe, Shield, Zap } from "l
 import { GlobalChat } from "@/components/GlobalChat";
 
 const Help = () => {
+  usePageTitle('Help');
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -118,7 +120,7 @@ const Help = () => {
             <AccordionItem value="item-8">
               <AccordionTrigger>What keyboard shortcuts are available?</AccordionTrigger>
               <AccordionContent>
-                In the browser: Alt+T (new tab), Alt+W (close tab), Alt+R (reload), Alt+L (focus address bar), Alt+← (back), Alt+→ (forward), Alt+Shift+T (reopen closed tab).
+                In the browser, press Alt+Z first, then: T (new tab), W (close tab), R (reload), L (focus address bar), ← (back), → (forward), F (fullscreen), I (dev tools).
               </AccordionContent>
             </AccordionItem>
           </Accordion>

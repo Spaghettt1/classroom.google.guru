@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { usePageTitle } from "@/hooks/use-page-title";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -19,6 +20,7 @@ import {
 import { Eye, EyeOff } from "lucide-react";
 
 const Signup = () => {
+  usePageTitle('Sign Up');
   const navigate = useNavigate();
   const { toast } = useToast();
   const [username, setUsername] = useState("");

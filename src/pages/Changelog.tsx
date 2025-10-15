@@ -1,6 +1,7 @@
 import { Navigation } from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { usePageTitle } from "@/hooks/use-page-title";
 import updatesData from "@/data/updates.json";
 import { Calendar } from "lucide-react";
 
@@ -14,6 +15,7 @@ type Update = {
 const updates: Update[] = updatesData;
 
 const Changelog = () => {
+  usePageTitle('Changelog');
   // Sort by updateNumber descending (latest first)
   const sortedUpdates = [...updates].sort((a, b) => b.updateNumber - a.updateNumber);
 

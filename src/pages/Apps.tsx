@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Filter, Heart } from "lucide-react";
 import { GlobalChat } from "@/components/GlobalChat";
 import { supabase } from "@/integrations/supabase/client";
+import { usePageTitle } from "@/hooks/use-page-title";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +25,7 @@ type App = {
 const apps: App[] = appsData as any;
 
 const Apps = () => {
+  usePageTitle('Apps');
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [favorites, setFavorites] = useState<string[]>([]);

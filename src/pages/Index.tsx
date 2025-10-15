@@ -6,9 +6,11 @@ import { useState, useEffect } from "react";
 import { ReportBugDialog } from "@/components/ReportBugDialog";
 import { RequestGameDialog } from "@/components/RequestGameDialog";
 import { GlobalChat } from "@/components/GlobalChat";
+import { usePageTitle } from "@/hooks/use-page-title";
 import versionData from "@/data/version.json";
 
 const Index = () => {
+  usePageTitle('Home');
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
 

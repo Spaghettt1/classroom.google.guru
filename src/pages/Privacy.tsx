@@ -1,8 +1,10 @@
 import { Navigation } from "@/components/Navigation";
 import { GlobalChat } from "@/components/GlobalChat";
 import { Card } from "@/components/ui/card";
+import { usePageTitle } from "@/hooks/use-page-title";
 
 const Privacy = () => {
+  usePageTitle('Privacy Policy');
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -87,9 +89,11 @@ const Privacy = () => {
                   <li>Save browser tabs, bookmarks, history, and settings locally</li>
                   <li>Cache chat messages locally for faster loading</li>
                   <li>Store game and app favorites locally before syncing</li>
-                  <li>Sync all data to your account when logged in (encrypted and secure)</li>
+                  <li className="font-medium">Sync all data (cookies, local storage) to your account when logged in (encrypted and secure)</li>
+                  <li className="font-medium">Save third-party cookies from websites you visit through our browser (only when using signed-in account)</li>
                   <li>Persist settings across sessions</li>
                   <li>You can clear this data anytime from Settings or by clearing your browser data</li>
+                  <li className="text-yellow-500 font-medium">All local storage and cookie data is automatically saved to your account when you sign up to preserve your data across devices and sessions</li>
                 </ul>
               </section>
 
