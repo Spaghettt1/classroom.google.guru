@@ -19,7 +19,11 @@ import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import Browser from "./pages/Browser";
 import Changelog from "./pages/Changelog";
+import Addons from "./pages/Addons";
 import NotFound from "./pages/NotFound";
+import { StarBackground } from "./components/StarBackground";
+import { BatteryWarning } from "./components/BatteryWarning";
+import EmailSettings from "./pages/EmailSettings";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +44,8 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <StarBackground />
+        <BatteryWarning />
         <Toaster />
         <Sonner />
         <UpdateDialog />
@@ -58,6 +64,7 @@ const App = () => {
             <Route path="/game" element={<GamePlayer />} />
             <Route path="/apps" element={<Apps />} />
             <Route path="/browser" element={<Browser />} />
+            <Route path="/addons" element={<Addons />} />
             <Route path="/help" element={<Help />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/auth" element={<Auth />} />
