@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Gamepad2, AppWindow, Globe, HelpCircle, Settings, Puzzle } from "lucide-react";
+import { Gamepad2, AppWindow, Globe, HelpCircle, Settings, Puzzle, Users } from "lucide-react";
 import updatesData from "@/jsons/updates.json";
 
 const navItems = [
@@ -9,6 +9,7 @@ const navItems = [
   { label: "Browser", href: "/browser", icon: Globe },
   { label: "Add-Ons", href: "/addons", icon: Puzzle },
   { label: "Help", href: "/help", icon: HelpCircle },
+  { label: "Credits", href: "/credits", icon: Users },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 

@@ -62,8 +62,8 @@ export const StarBackground = () => {
       return {
         x,
         y,
-        vx: (Math.random() - 0.5) * 1.0,
-        vy: (Math.random() - 0.5) * 1.0,
+        vx: (Math.random() - 0.5) * 0.3, // Slower speed
+        vy: (Math.random() - 0.5) * 0.3, // Slower speed
         radius: Math.random() * 3.7 + 0.3,
         opacity: Math.random() * 0.2 + 0.8
       };
@@ -124,8 +124,8 @@ export const StarBackground = () => {
       // Maintain consistent particle count by spawning from edges
       const deficit = targetStarCount - starsRef.current.length;
       if (deficit > 0) {
-        // Spawn particles to maintain target count
-        const spawnProbability = Math.min(deficit * 0.02, 0.3); // Dynamic spawn rate
+        // Spawn particles more aggressively to maintain count
+        const spawnProbability = Math.min(deficit * 0.05, 0.5); // Higher spawn rate
         if (Math.random() < spawnProbability) {
           starsRef.current.push(createStar(true));
         }

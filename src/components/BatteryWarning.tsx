@@ -43,7 +43,7 @@ export const BatteryWarning = ({ isGamePage = false }: BatteryWarningProps) => {
             }
           });
         } catch (error) {
-          console.log('Battery API not available');
+          // Battery API not available
         }
       }
     };

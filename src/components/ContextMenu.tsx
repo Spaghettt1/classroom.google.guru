@@ -43,18 +43,28 @@ export const ContextMenu = ({
     // Fetch addons data and load installed addons
     const loadAddons = async () => {
       try {
-        const response = await fetch('https://cdn.jsdelivr.net/gh/Hideout-Network/hideout-assets/addons/addons.json');
+        const response = await fetch('https://hideout-network.github.io/hideout-assets/addons/addons.json');
         const data: AddonsData = await response.json();
         setAddonsData(data);
 
         const installed = localStorage.getItem("hideout_installed_addons");
+        const imported = localStorage.getItem("imported_addons");
+        
+        let installedAddonsData: any[] = [];
+        
         if (installed) {
           const scriptUrls = JSON.parse(installed);
-          const installedAddonsData = data.addons.filter((addon) =>
+          installedAddonsData = data.addons.filter((addon) =>
             scriptUrls.includes(addon.scriptUrl)
           );
-          setInstalledAddons(installedAddonsData);
         }
+        
+        if (imported) {
+          const importedAddonsData = JSON.parse(imported);
+          installedAddonsData = [...installedAddonsData, ...importedAddonsData];
+        }
+        
+        setInstalledAddons(installedAddonsData);
       } catch (error) {
         console.error("Failed to load addons:", error);
       }
@@ -64,13 +74,30 @@ export const ContextMenu = ({
 
   const handleOpenInAboutBlank = () => {
     const currentUrl = window.location.href;
+    
+    // Load settings from localStorage
+    const savedSettings = localStorage.getItem('hideout_settings');
+    let favicon = '';
+    let tabName = 'Hideout';
+    
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        favicon = settings.aboutBlankFavicon || '';
+        tabName = settings.aboutBlankTabName || 'Hideout';
+      } catch (e) {
+        console.error('Failed to parse settings:', e);
+      }
+    }
+    
     const aboutBlankWindow = window.open("about:blank", "_blank");
     if (aboutBlankWindow) {
       aboutBlankWindow.document.write(`
         <!DOCTYPE html>
         <html>
           <head>
-            <title>Hideout</title>
+            <title>${tabName}</title>
+            ${favicon ? `<link rel="icon" href="${favicon}" type="image/x-icon">` : ''}
             <style>
               * { margin: 0; padding: 0; box-sizing: border-box; }
               html, body { width: 100%; height: 100%; overflow: hidden; }
@@ -116,16 +143,16 @@ export const ContextMenu = ({
   };
 
   const handleRunAddon = async (addon: any, inIframe: boolean = false) => {
-    if (!addonsData) return;
-
-    const fullScriptUrl = `${addonsData.site}${addon.scriptUrl}`;
+    const isImported = addon.isImported;
+    const fullScriptUrl = isImported ? '' : (addonsData ? `${addonsData.site}${addon.scriptUrl}` : addon.scriptUrl);
     const idAttr = "data-hideout-addon";
-    const isExecuted = !!executedAddons[addon.scriptUrl];
+    const addonKey = isImported ? addon.id : addon.scriptUrl;
+    const isExecuted = !!executedAddons[addonKey];
 
     const removeScriptsFromRoot = (root: Document | null) => {
       if (!root) return 0;
       const removed: string[] = [];
-      Array.from(root.querySelectorAll(`script[${idAttr}="${encodeURIComponent(addon.scriptUrl)}"]`)).forEach((s) => {
+      Array.from(root.querySelectorAll(`script[${idAttr}="${encodeURIComponent(addonKey)}"]`)).forEach((s) => {
         s.remove();
         removed.push("ok");
       });
@@ -148,7 +175,7 @@ export const ContextMenu = ({
 
         setExecutedAddons((prev) => {
           const copy = { ...prev };
-          delete copy[addon.scriptUrl];
+          delete copy[addonKey];
           return copy;
         });
         toast.success("Addon unexecuted");
@@ -168,10 +195,14 @@ export const ContextMenu = ({
         if (iframe && iframe.contentWindow && iframe.contentWindow.document) {
           try {
             const script = iframe.contentWindow.document.createElement("script");
-            script.src = fullScriptUrl;
-            script.setAttribute(idAttr, encodeURIComponent(addon.scriptUrl));
+            if (isImported) {
+              script.textContent = addon.scriptUrl;
+            } else {
+              script.src = fullScriptUrl;
+            }
+            script.setAttribute(idAttr, encodeURIComponent(addonKey));
             iframe.contentWindow.document.body.appendChild(script);
-            setExecutedAddons((prev) => ({ ...prev, [addon.scriptUrl]: true }));
+            setExecutedAddons((prev) => ({ ...prev, [addonKey]: true }));
             toast.success("Addon executed");
           } catch (error) {
             toast.error("Cannot inject into cross-origin iframe");
@@ -182,17 +213,25 @@ export const ContextMenu = ({
         }
       } else {
         const script = document.createElement("script");
-        script.src = fullScriptUrl;
-        script.setAttribute(idAttr, encodeURIComponent(addon.scriptUrl));
-        script.onload = () => {
-          setExecutedAddons((prev) => ({ ...prev, [addon.scriptUrl]: true }));
+        script.setAttribute(idAttr, encodeURIComponent(addonKey));
+        
+        if (isImported) {
+          script.textContent = addon.scriptUrl;
+          document.body.appendChild(script);
+          setExecutedAddons((prev) => ({ ...prev, [addonKey]: true }));
           toast.success("Addon executed");
-        };
-        script.onerror = () => {
-          console.error("Failed to load addon from:", fullScriptUrl);
-          toast.error("Failed to run addon");
-        };
-        document.body.appendChild(script);
+        } else {
+          script.src = fullScriptUrl;
+          script.onload = () => {
+            setExecutedAddons((prev) => ({ ...prev, [addonKey]: true }));
+            toast.success("Addon executed");
+          };
+          script.onerror = () => {
+            console.error("Failed to load addon from:", fullScriptUrl);
+            toast.error("Failed to run addon");
+          };
+          document.body.appendChild(script);
+        }
       }
     } catch (error) {
       console.error("Execute error:", error);
@@ -254,17 +293,19 @@ export const ContextMenu = ({
                     onMouseEnter={() => setHoveredAddonId(addon.id)}
                     onMouseLeave={() => setHoveredAddonId(null)}
                   >
-                    <button className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted/50 flex items-center justify-between gap-3 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={`${addonsData.site}${addon.iconPath}`}
-                          alt=""
-                          className="w-4 h-4 rounded"
-                        />
-                        <span className="truncate">{addon.name}</span>
-                      </div>
-                      <span className="text-xs">›</span>
-                    </button>
+                     <button className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted/50 flex items-center justify-between gap-3 transition-colors">
+                       <div className="flex items-center gap-3">
+                         {!addon.isImported && addonsData && (
+                           <img
+                             src={`${addonsData.site}${addon.iconPath}`}
+                             alt=""
+                             className="w-4 h-4 rounded"
+                           />
+                         )}
+                         <span className="truncate">{addon.name}</span>
+                       </div>
+                       <span className="text-xs">›</span>
+                     </button>
 
                     {hoveredAddonId === addon.id && (
                       <div
@@ -274,7 +315,7 @@ export const ContextMenu = ({
                           onClick={() => handleRunAddon(addon, false)}
                           className="w-full px-4 py-2.5 text-left text-sm hover:bg-muted/50 transition-colors"
                         >
-                          {executedAddons[addon.scriptUrl] ? "Unexecute" : "Execute"}
+                          {executedAddons[addon.isImported ? addon.id : addon.scriptUrl] ? "Unexecute" : "Execute"}
                         </button>
 
                         {/* Execute in iframe remains disabled - clicking main Execute can toggle unexecute */}

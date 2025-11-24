@@ -126,8 +126,9 @@ export const GlobalChat = () => {
     localStorage.setItem('hideout_chat_username', cleanUsername);
     setShowUsernameDialog(false);
     setTempUsername("");
-    fetchMessages();
-    subscribeToMessages();
+    
+    // Reload page after setting username
+    window.location.reload();
   };
 
   const sendMessage = async (e: React.FormEvent) => {
