@@ -40,11 +40,11 @@ const Help = () => {
               <p className="text-sm text-muted-foreground">Join our Discord community</p>
             </Card>
           </a>
-          <a href="mailto:hideout-network-buisness@hotmail.com">
+          <a href="https://github.com/Hideout-Network/hideout/issues/new" target="_blank" rel="noopener noreferrer">
             <Card className="p-6 bg-card border-border hover:border-primary/20 transition-all cursor-pointer group">
               <Mail className="w-8 h-8 text-primary mb-3 group-hover:scale-110 transition-transform" />
-              <h3 className="font-semibold mb-2">Contact Us</h3>
-              <p className="text-sm text-muted-foreground">Get in touch with support</p>
+              <h3 className="font-semibold mb-2">Report Issue</h3>
+              <p className="text-sm text-muted-foreground">Submit feedback or report bugs</p>
             </Card>
           </a>
         </div>

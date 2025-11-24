@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Download, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Check, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { usePageTitle } from '@/hooks/use-page-title';
 import { toast } from 'sonner';
 import { StarBackground } from '@/components/StarBackground';
@@ -18,6 +20,7 @@ type Addon = {
   rating?: number;
   users?: string;
   fileSize?: string;
+  isImported?: boolean;
 };
 
 type AddonsData = {
@@ -32,13 +35,16 @@ const Addons = () => {
   const [installedAddons, setInstalledAddons] = useState<string[]>([]);
   const [installingAddon, setInstallingAddon] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importScript, setImportScript] = useState('');
+  const [importedAddons, setImportedAddons] = useState<Addon[]>([]);
 
   useEffect(() => {
     const loadAddons = async () => {
       setIsLoading(true);
       try {
         // Fetch addons data from remote URL
-        const response = await fetch('https://cdn.jsdelivr.net/gh/Hideout-Network/hideout-assets/addons/addons.json');
+        const response = await fetch('https://hideout-network.github.io/hideout-assets/addons/addons.json');
         const data = await response.json();
         setAddonsData(data);
 
@@ -46,6 +52,12 @@ const Addons = () => {
         const saved = localStorage.getItem('hideout_installed_addons');
         if (saved) {
           setInstalledAddons(JSON.parse(saved));
+        }
+
+        // Load imported addons from localStorage
+        const importedSaved = localStorage.getItem('imported_addons');
+        if (importedSaved) {
+          setImportedAddons(JSON.parse(importedSaved));
         }
       } catch (error) {
         console.error('Failed to load addons:', error);
@@ -71,13 +83,20 @@ const Addons = () => {
   const addons = addonsData.addons;
   const addonSite = addonsData.site;
 
-  const filteredAddons = addons.filter(addon =>
+  // Combine imported addons with regular addons
+  const allAddons = [...addons, ...importedAddons];
+
+  const filteredAddons = allAddons.filter(addon =>
     addon.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     addon.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const installedItems = filteredAddons.filter(addon => installedAddons.includes(addon.scriptUrl));
-  const availableItems = filteredAddons.filter(addon => !installedAddons.includes(addon.scriptUrl));
+  const installedItems = filteredAddons.filter(addon => 
+    addon.isImported || installedAddons.includes(addon.scriptUrl)
+  );
+  const availableItems = filteredAddons.filter(addon => 
+    !addon.isImported && !installedAddons.includes(addon.scriptUrl)
+  );
 
   const handleInstall = async (addon: Addon) => {
     setInstallingAddon(addon.id);
@@ -96,9 +115,16 @@ const Addons = () => {
   };
 
   const handleUninstall = (addon: Addon) => {
-    const newInstalled = installedAddons.filter(url => url !== addon.scriptUrl);
-    setInstalledAddons(newInstalled);
-    localStorage.setItem('hideout_installed_addons', JSON.stringify(newInstalled));
+    if (addon.isImported) {
+      // Remove from imported addons
+      const newImported = importedAddons.filter(a => a.id !== addon.id);
+      setImportedAddons(newImported);
+      localStorage.setItem('imported_addons', JSON.stringify(newImported));
+    } else {
+      const newInstalled = installedAddons.filter(url => url !== addon.scriptUrl);
+      setInstalledAddons(newInstalled);
+      localStorage.setItem('hideout_installed_addons', JSON.stringify(newInstalled));
+    }
 
     // Remove the script
     const script = document.getElementById(`addon-${addon.id}`);
@@ -107,6 +133,32 @@ const Addons = () => {
     }
 
     toast.success(`${addon.name} uninstalled`);
+  };
+
+  const handleImportAddon = () => {
+    if (!importScript.trim()) {
+      toast.error('Please enter a script');
+      return;
+    }
+
+    const newAddon: Addon = {
+      id: `imported-${Date.now()}`,
+      name: `Imported Addon ${importedAddons.length + 1}`,
+      author: 'User',
+      version: '1.0.0',
+      description: 'Custom imported addon',
+      iconPath: '',
+      scriptUrl: importScript.trim(),
+      isImported: true,
+    };
+
+    const newImportedAddons = [...importedAddons, newAddon];
+    setImportedAddons(newImportedAddons);
+    localStorage.setItem('imported_addons', JSON.stringify(newImportedAddons));
+    
+    setImportScript('');
+    setImportDialogOpen(false);
+    toast.success('Addon imported successfully!');
   };
 
   return (
@@ -126,12 +178,45 @@ const Addons = () => {
             </Button>
             <h1 className="text-2xl font-bold">Add-Ons</h1>
           </div>
-          <Input
-            placeholder="Search add-ons..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full sm:max-w-md"
-          />
+          <div className="flex items-center gap-4 flex-1 w-full sm:w-auto">
+            <Input
+              placeholder="Search add-ons..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 sm:max-w-md"
+            />
+            <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 whitespace-nowrap">
+                  <Plus className="w-4 h-4" />
+                  Import Addon
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Import Custom Addon</DialogTitle>
+                  <DialogDescription>
+                    Paste your custom addon script below and click Import to add it to your installed addons.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 mt-4">
+                  <Textarea
+                    value={importScript}
+                    onChange={(e) => setImportScript(e.target.value)}
+                    placeholder="Paste your script code here..."
+                    className="min-h-[300px] font-mono text-sm"
+                  />
+                  <Button 
+                    onClick={handleImportAddon} 
+                    className="w-full"
+                    size="lg"
+                  >
+                    Import
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </header>
 
@@ -148,13 +233,20 @@ const Addons = () => {
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <div className="flex gap-4">
-                    <img
-                      src={`${addonSite}${addon.iconPath}`}
-                      alt={addon.name}
-                      className="w-20 h-20 rounded-lg object-cover transition-transform hover:scale-105"
-                    />
+                    {!addon.isImported && (
+                      <img
+                        src={`${addonSite}${addon.iconPath}`}
+                        alt={addon.name}
+                        className="w-20 h-20 rounded-lg object-cover transition-transform hover:scale-105"
+                      />
+                    )}
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-lg truncate">{addon.name}</h3>
+                      <h3 className="font-bold text-lg truncate">
+                        {addon.name}
+                        {addon.isImported && (
+                          <span className="ml-2 text-xs bg-primary/20 text-primary px-2 py-1 rounded">Imported</span>
+                        )}
+                      </h3>
                       <p className="text-xs text-muted-foreground">by {addon.author}</p>
                       <Button
                         variant="outline"

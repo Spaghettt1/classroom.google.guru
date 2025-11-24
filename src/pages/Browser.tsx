@@ -10,9 +10,9 @@ import { BrowserHelp } from "@/components/browser/BrowserHelp";
 import { BrowserHistory } from "@/components/browser/BrowserHistory";
 import { supabase } from "@/integrations/supabase/client";
 import { GlobalChat } from "@/components/GlobalChat";
-import { DevTools } from "@/components/DevTools";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { StarBackground } from "@/components/StarBackground";
+import eruda from "eruda";
 
 // Browser configuration
 
@@ -128,11 +128,74 @@ const Browser = () => {
   const [zoom, setZoom] = useState(1);
   const [closedTabs, setClosedTabs] = useState<Tab[]>([]);
   const [showDevTools, setShowDevTools] = useState(false);
+  const [showPopupDialog, setShowPopupDialog] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const erudaContainerRef = useRef<HTMLDivElement>(null);
   const nextTabId = useRef(2);
   const saveTimeoutRef = useRef<NodeJS.Timeout>();
 
   const activeTab = tabs.find(t => t.id === activeTabId);
+
+  // Initialize and destroy Eruda based on showDevTools state using a container
+  useEffect(() => {
+    if (showDevTools && erudaContainerRef.current) {
+      try {
+        eruda.init({
+          container: erudaContainerRef.current,
+          tool: ['console', 'elements', 'network', 'resources', 'info', 'snippets', 'sources'],
+          useShadowDom: true,
+          autoScale: true,
+        });
+        toast.success("Developer Tools loaded");
+      } catch (error) {
+        console.error("Failed to initialize Eruda:", error);
+        toast.error("Failed to load developer tools");
+      }
+    }
+    
+    return () => {
+      if (showDevTools) {
+        try {
+          eruda.destroy();
+        } catch (error) {
+          // Eruda might not be initialized yet
+        }
+      }
+    };
+  }, [showDevTools]);
+
+  // Close DevTools when leaving browser page
+  useEffect(() => {
+    return () => {
+      try {
+        eruda.destroy();
+      } catch (error) {
+        // Eruda might not be initialized
+      }
+    };
+  }, []);
+
+  // Check popup permissions on mount
+  useEffect(() => {
+    const checkPopupPermissions = () => {
+      try {
+        const testWindow = window.open('', '', 'width=1,height=1');
+        if (testWindow) {
+          testWindow.close();
+        } else {
+          // Popups are blocked
+          setShowPopupDialog(true);
+        }
+      } catch (error) {
+        // Error opening popup, likely blocked
+        setShowPopupDialog(true);
+      }
+    };
+
+    // Check after a short delay to avoid interfering with page load
+    const timer = setTimeout(checkPopupPermissions, 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Sync browser data to Supabase if user is logged in
   const syncToSupabase = useCallback(async () => {
@@ -917,9 +980,6 @@ const Browser = () => {
         )}
       </div>
 
-      {/* DevTools */}
-      {showDevTools && <DevTools onClose={() => setShowDevTools(false)} />}
-
       <AlertDialog open={showMaxTabsDialog} onOpenChange={setShowMaxTabsDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -934,7 +994,30 @@ const Browser = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={showPopupDialog} onOpenChange={setShowPopupDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Allow Popups</AlertDialogTitle>
+            <AlertDialogDescription>
+              This browser requires popup permissions to function properly. Please allow popups for this site in your browser settings.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowPopupDialog(false)}>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <GlobalChat />
+      
+      {/* Eruda DevTools Container */}
+      {showDevTools && (
+        <div 
+          ref={erudaContainerRef} 
+          className="fixed inset-0 z-[9999] bg-background"
+        />
+      )}
     </div>
   );
 };

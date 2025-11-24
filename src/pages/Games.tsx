@@ -17,6 +17,7 @@ const GAME_URLS = [
   "https://cdn.jsdelivr.net/gh/gn-math/assets@latest/zones.json",
   "https://raw.githubusercontent.com/gn-math/assets/main/zones.json"
 ];
+const HIDEOUT_GAMES_URL = "https://hideout-network.github.io/hideout-assets/games/games.json";
 const HTML_URL = "https://cdn.jsdelivr.net/gh/gn-math/html@main";
 const COVER_URL = "https://cdn.jsdelivr.net/gh/gn-math/covers@main";
 
@@ -56,7 +57,10 @@ const Games = () => {
 
   const loadGames = async () => {
     let lastError = null;
+    let originalGames: Game[] = [];
+    let gitlabGames: Game[] = [];
 
+    // Load original games
     for (let url of GAME_URLS) {
       try {
         const response = await fetch(url + "?t=" + Date.now());
@@ -64,20 +68,43 @@ const Games = () => {
         
         const data = await response.json();
         const validGames = data.filter((g: Game) => g.id > 0 && !g.url.startsWith("http"));
-        
-        // Randomize games order
-        const randomizedGames = validGames.sort(() => Math.random() - 0.5);
-        
-        setGames(randomizedGames);
-        setIsLoading(false);
-        return;
+        originalGames = validGames;
+        break;
       } catch (error) {
         lastError = error;
         continue;
       }
     }
 
-    setLoadError(lastError?.message || 'Unknown error');
+    // Load Hideout games
+    try {
+      const response = await fetch(HIDEOUT_GAMES_URL + "?t=" + Date.now());
+      if (response.ok) {
+        const data = await response.json();
+        const site = data.site || "https://hideout-games.onrender.com/public";
+        
+        gitlabGames = data.games?.map((g: any, index: number) => ({
+          id: originalGames.length + index + 1000,
+          name: `${g.name} (Gitlab)`,
+          url: `${site}${g.gamePath}`,
+          cover: `${site}${g.iconPath}`
+        })) || [];
+      }
+    } catch (error) {
+      console.warn("Failed to load Hideout games:", error);
+    }
+
+    if (originalGames.length === 0 && gitlabGames.length === 0) {
+      setLoadError(lastError?.message || 'Unknown error');
+      setIsLoading(false);
+      return;
+    }
+
+    // Combine and randomize all games
+    const allGames = [...originalGames, ...gitlabGames];
+    const randomizedGames = allGames.sort(() => Math.random() - 0.5);
+    
+    setGames(randomizedGames);
     setIsLoading(false);
   };
 
@@ -255,26 +282,36 @@ const Games = () => {
     if (!currentGame) return;
 
     const loadGameContent = async () => {
-      const gameUrl = currentGame.url
-        .replace('{HTML_URL}', HTML_URL)
-        .replace('{COVER_URL}', COVER_URL);
+      const isGitlabGame = currentGame.name.includes('(Gitlab)');
+      const iframe = document.getElementById('game-iframe') as HTMLIFrameElement;
+      
+      if (!iframe) return;
 
-      try {
-        const response = await fetch(gameUrl + "?t=" + Date.now());
-        const html = await response.text();
+      if (isGitlabGame) {
+        // For Gitlab games, just set the src directly
+        iframe.src = currentGame.url;
+      } else {
+        // For original games, fetch HTML and write to iframe
+        const gameUrl = currentGame.url
+          .replace('{HTML_URL}', HTML_URL)
+          .replace('{COVER_URL}', COVER_URL);
 
-        const iframe = document.getElementById('game-iframe') as HTMLIFrameElement;
-        if (iframe?.contentDocument) {
-          iframe.contentDocument.open();
-          iframe.contentDocument.write(html);
-          iframe.contentDocument.close();
+        try {
+          const response = await fetch(gameUrl + "?t=" + Date.now());
+          const html = await response.text();
+
+          if (iframe.contentDocument) {
+            iframe.contentDocument.open();
+            iframe.contentDocument.write(html);
+            iframe.contentDocument.close();
+          }
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Failed to load game: " + (error as Error).message,
+            variant: "destructive"
+          });
         }
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to load game: " + (error as Error).message,
-          variant: "destructive"
-        });
       }
     };
 
@@ -319,7 +356,7 @@ const Games = () => {
             </div>
 
             {/* Controls */}
-            <div className="w-full bg-card rounded-lg border border-border p-4 flex gap-3">
+            <div className="w-full bg-card/50 backdrop-blur-md rounded-lg border border-border/50 p-4 flex gap-3">
               <Button
                 onClick={handleFullscreen}
                 disabled={showGameLoader}
@@ -421,7 +458,7 @@ const Games = () => {
             
             return (
               <div
-                key={game.id}
+                key={`${game.id}-${game.name}`}
                 className="group relative bg-card rounded-lg overflow-hidden border border-border hover:border-primary/50 hover:scale-105 transition-all duration-200 cursor-pointer animate-fade-in"
                 style={{ animationDelay: `${index * 20}ms` }}
               >

@@ -6,24 +6,25 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Settings, Bell, Palette, Database, Trash2, Globe, Zap, Activity } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { StarBackground } from "@/components/StarBackground";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-type ThemesData = {
-  site: string;
-  "main-theme": string;
-  themes: Array<{
-    id: string;
-    name: string;
-    themePath: string;
-  }>;
-};
-
+import { useThemeSystem } from "@/hooks/use-theme-system";
 
 type SettingsData = {
   reducedMotion: boolean;
@@ -36,6 +37,8 @@ type SettingsData = {
   disableUpdatePopups: boolean;
   incognitoMode: boolean;
   selectedTheme: string;
+  aboutBlankFavicon?: string;
+  aboutBlankTabName?: string;
 };
 
 const SettingsPage = () => {
@@ -43,7 +46,7 @@ const SettingsPage = () => {
   const location = useLocation();
   const fromBrowser = (location.state as { fromBrowser?: boolean })?.fromBrowser;
   const [user, setUser] = useState<any>(null);
-  const [themesData, setThemesData] = useState<ThemesData | null>(null);
+  const { themesData, currentThemeId, isLoading: themesLoading, changeTheme } = useThemeSystem();
   
   const [settings, setSettings] = useState<SettingsData>({
     reducedMotion: false,
@@ -56,99 +59,103 @@ const SettingsPage = () => {
     disableUpdatePopups: false,
     incognitoMode: false,
     selectedTheme: '',
+    aboutBlankFavicon: '',
+    aboutBlankTabName: 'Hideout',
   });
   
   const [clipboardEnabled, setClipboardEnabled] = useState(false);
+  const [showClearDataDialog, setShowClearDataDialog] = useState(false);
+  const [presets, setPresets] = useState<any[]>([]);
+  const [loadingPresets, setLoadingPresets] = useState(false);
 
   useEffect(() => {
-    // Fetch themes data from remote URL
-    const loadThemes = async () => {
+    // Load presets from hideout-network with their favicons
+    const loadPresets = async () => {
       try {
-        const response = await fetch('https://cdn.jsdelivr.net/gh/Hideout-Network/hideout-assets/themes/themes.json');
+        const response = await fetch('https://hideout-network.github.io/hideout-assets/about:blank/presets/presets.json');
         const data = await response.json();
-        setThemesData(data);
-
-        // Load settings from localStorage
-        const savedSettings = localStorage.getItem('hideout_settings');
+        const baseUrl = 'https://hideout-network.github.io/hideout-assets/about:blank/presets';
         
-        let loadedSettings: SettingsData = {
-          reducedMotion: false,
-          fontSize: 'medium',
-          highContrast: false,
-          notificationsEnabled: false,
-          generalNotifications: true,
-          performanceMode: false,
-          showFPS: false,
-          disableUpdatePopups: false,
-          incognitoMode: false,
-          selectedTheme: data['main-theme'],
-        };
-        
-        if (savedSettings) {
-          try {
-            const parsed = JSON.parse(savedSettings);
-            loadedSettings = { ...loadedSettings, ...parsed };
-          } catch (e) {
-            console.error('Failed to parse settings:', e);
-          }
-        }
-
-        // Check notification permission (don't overwrite other settings)
-        if ('Notification' in window) {
-          loadedSettings.notificationsEnabled = Notification.permission === 'granted';
-        }
-        
-        // Check clipboard permission
-        if (navigator.permissions) {
-          try {
-            const permission = await navigator.permissions.query({ name: 'clipboard-write' as PermissionName });
-            setClipboardEnabled(permission.state === 'granted');
-          } catch {
-            // Fallback: try to write to clipboard to check
+        // Fetch all preset details to get favicons
+        const presetsWithFavicons = await Promise.all(
+          (data.presets || []).map(async (preset: any) => {
             try {
-              await navigator.clipboard.writeText('');
-              setClipboardEnabled(true);
-            } catch {
-              setClipboardEnabled(false);
+              const presetResponse = await fetch(`${baseUrl}${preset.presetPath}`);
+              const presetData = await presetResponse.json();
+              return { ...preset, favicon: presetData.favicon };
+            } catch (error) {
+              console.error(`Failed to load preset ${preset.id}:`, error);
+              return preset;
             }
-          }
-        }
-
-        // Update state and apply settings
-        setSettings(loadedSettings);
-        applySettings(loadedSettings);
+          })
+        );
         
-        // Clean up old theme storage items - only use hideout_settings
-        localStorage.removeItem('hideout_active_theme');
-        localStorage.removeItem('hideout_theme');
-        
-        // Apply saved theme from settings
-        if (loadedSettings.selectedTheme) {
-          const theme = data.themes.find((t: any) => t.id === loadedSettings.selectedTheme);
-          if (theme) {
-            // Clean up old theme effects first
-            const customEffectsContainer = document.getElementById('halloween-pumpkins');
-            if (customEffectsContainer) customEffectsContainer.remove();
-            const themeEffects = document.getElementById('theme-effects');
-            if (themeEffects) themeEffects.remove();
-            
-            const oldScript = document.getElementById('hideout-theme');
-            if (oldScript) oldScript.remove();
-            
-            const script = document.createElement('script');
-            script.id = 'hideout-theme';
-            script.src = `${data.site}${theme.themePath}`;
-            document.head.appendChild(script);
-          }
-        }
+        setPresets(presetsWithFavicons);
       } catch (error) {
-        console.error('Failed to load themes:', error);
-        toast.error('Failed to load themes data');
+        console.error('Failed to load presets:', error);
       }
     };
-
-    loadThemes();
+    loadPresets();
   }, []);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      // Load settings from localStorage
+      const savedSettings = localStorage.getItem('hideout_settings');
+      
+      let loadedSettings: SettingsData = {
+        reducedMotion: false,
+        fontSize: 'medium',
+        highContrast: false,
+        notificationsEnabled: false,
+        generalNotifications: true,
+        performanceMode: false,
+        showFPS: false,
+        disableUpdatePopups: false,
+        incognitoMode: false,
+        selectedTheme: currentThemeId,
+        aboutBlankFavicon: '',
+        aboutBlankTabName: 'Hideout',
+      };
+      
+      if (savedSettings) {
+        try {
+          const parsed = JSON.parse(savedSettings);
+          loadedSettings = { ...loadedSettings, ...parsed };
+        } catch (e) {
+          console.error('Failed to parse settings:', e);
+        }
+      }
+
+      // Check notification permission
+      if ('Notification' in window) {
+        loadedSettings.notificationsEnabled = Notification.permission === 'granted';
+      }
+      
+      // Check clipboard permission
+      if (navigator.permissions) {
+        try {
+          const permission = await navigator.permissions.query({ name: 'clipboard-write' as PermissionName });
+          setClipboardEnabled(permission.state === 'granted');
+        } catch {
+          try {
+            await navigator.clipboard.writeText('');
+            setClipboardEnabled(true);
+          } catch {
+            setClipboardEnabled(false);
+          }
+        }
+      }
+
+      // Update state and apply settings
+      setSettings(loadedSettings);
+      applySettings(loadedSettings);
+    };
+
+    if (currentThemeId) {
+      loadSettings();
+    }
+  }, [currentThemeId]);
 
   const applySettings = (newSettings: SettingsData) => {
     // Apply font size
@@ -218,26 +225,6 @@ const SettingsPage = () => {
     
     // Apply settings immediately
     applySettings(newSettings);
-    
-    // Apply theme change immediately if theme was changed
-    if (field === 'selectedTheme' && themesData) {
-      const theme = themesData.themes.find(t => t.id === value);
-      if (theme) {
-        const script = document.getElementById('theme-script');
-        if (script) {
-          script.remove();
-        }
-        
-        const newScript = document.createElement('script');
-        newScript.id = 'theme-script';
-        newScript.src = `${themesData.site}${theme.themePath}`;
-        newScript.async = true;
-        newScript.onload = () => {
-          console.log(`Theme loaded: ${theme.name}`);
-        };
-        document.head.appendChild(newScript);
-      }
-    }
     
     toast.success("Settings saved", { duration: 2000 });
   };
@@ -320,6 +307,8 @@ const SettingsPage = () => {
       disableUpdatePopups: false,
       incognitoMode: false,
       selectedTheme: themesData['main-theme'],
+      aboutBlankFavicon: '',
+      aboutBlankTabName: 'Hideout',
     };
     
     setSettings(defaultSettings);
@@ -329,55 +318,86 @@ const SettingsPage = () => {
   };
 
   const handleThemeChange = (themeId: string) => {
-    if (!themesData) return;
-
-    const theme = themesData.themes.find(t => t.id === themeId);
-    if (!theme) return;
-
-    // Clean up old theme effects thoroughly
-    const oldScript = document.getElementById('hideout-theme');
-    if (oldScript) {
-      try {
-        // Remove any custom effect containers
-        const customEffectsContainer = document.getElementById('halloween-pumpkins');
-        if (customEffectsContainer) customEffectsContainer.remove();
-        const themeEffects = document.getElementById('theme-effects');
-        if (themeEffects) themeEffects.remove();
-      } catch (e) {}
-      oldScript.remove();
-    }
-
-    // Load new theme
-    const script = document.createElement('script');
-    script.id = 'hideout-theme';
-    script.src = `${themesData.site}${theme.themePath}`;
-    document.head.appendChild(script);
-
-    // Save to settings and localStorage immediately
+    changeTheme(themeId);
+    
+    // Update settings state
     const newSettings = { ...settings, selectedTheme: themeId };
     setSettings(newSettings);
     localStorage.setItem('hideout_settings', JSON.stringify(newSettings));
-    toast.success("Theme updated", { duration: 5000 });
+    
+    toast.success("Theme updated", { duration: 2000 });
   };
 
-  const handleClearData = () => {
-    // Clear all localStorage except theme settings
-    const keysToRemove = Object.keys(localStorage).filter(
-      (key) => !key.includes("hideout_settings")
-    );
-    keysToRemove.forEach((key) => localStorage.removeItem(key));
-    
-    // Clear cookies
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c
-        .replace(/^ +/, "")
-        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-    });
-    
-    toast.success("All data cleared successfully");
+  const handleClearData = async () => {
+    try {
+      // Clear all localStorage
+      localStorage.clear();
+      
+      // Clear all sessionStorage
+      sessionStorage.clear();
+      
+      // Clear all cookies
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      
+      // Clear IndexedDB databases
+      if (window.indexedDB) {
+        const databases = await window.indexedDB.databases();
+        databases.forEach(db => {
+          if (db.name) {
+            window.indexedDB.deleteDatabase(db.name);
+          }
+        });
+      }
+      
+      // Clear cache storage
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+      
+      toast.success("All data cleared successfully! Reloading...", { duration: 3000 });
+      
+      // Reload the page after a short delay
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
+    } catch (error) {
+      console.error('Error clearing data:', error);
+      toast.error("Failed to clear all data. Please try again.");
+    }
   };
 
-  if (!themesData) {
+  const handlePresetSelect = async (presetPath: string) => {
+    setLoadingPresets(true);
+    try {
+      const baseUrl = 'https://hideout-network.github.io/hideout-assets/about:blank/presets';
+      const response = await fetch(`${baseUrl}${presetPath}`);
+      const presetData = await response.json();
+      
+      // Update settings with preset data
+      const newSettings = {
+        ...settings,
+        aboutBlankFavicon: presetData.favicon || '',
+        aboutBlankTabName: presetData.tabName || 'Hideout',
+      };
+      
+      setSettings(newSettings);
+      localStorage.setItem('hideout_settings', JSON.stringify(newSettings));
+      
+      toast.success("Preset applied successfully");
+    } catch (error) {
+      console.error('Failed to load preset:', error);
+      toast.error("Failed to load preset");
+    } finally {
+      setLoadingPresets(false);
+    }
+  };
+
+  if (themesLoading || !themesData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -462,7 +482,7 @@ const SettingsPage = () => {
               </div>
               <div className="space-y-2">
                 <Label>Theme</Label>
-                <Select value={settings.selectedTheme} onValueChange={handleThemeChange}>
+                <Select value={currentThemeId} onValueChange={handleThemeChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a theme" />
                   </SelectTrigger>
@@ -489,9 +509,9 @@ const SettingsPage = () => {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Clear Data</Label>
-                  <p className="text-sm text-muted-foreground">Delete all local data</p>
+                  <p className="text-sm text-muted-foreground">Delete all local data, cookies, and cache</p>
                 </div>
-                <Button variant="destructive" size="sm" onClick={handleClearData} className="gap-2">
+                <Button variant="destructive" size="sm" onClick={() => setShowClearDataDialog(true)} className="gap-2">
                   <Trash2 className="w-4 h-4" />
                   Clear Data
                 </Button>
@@ -624,6 +644,89 @@ const SettingsPage = () => {
             </div>
           </Card>
 
+          {/* About:blank Settings */}
+          <Card className="p-4 sm:p-6 bg-card border-border">
+            <div className="flex items-center gap-3 mb-4">
+              <Globe className="w-5 h-5 text-primary" />
+              <h2 className="text-lg sm:text-xl font-semibold">About:blank</h2>
+            </div>
+            <Separator className="mb-4" />
+            <div className="space-y-4">
+              {/* Presets Dropdown */}
+              {presets.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Presets</Label>
+                  <Select 
+                    onValueChange={handlePresetSelect}
+                    disabled={loadingPresets}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a preset..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60 overflow-y-auto bg-popover">
+                      {presets.map((preset) => (
+                        <SelectItem key={preset.id} value={preset.presetPath} className="flex items-center gap-2">
+                          {preset.favicon && (
+                            <img 
+                              src={preset.favicon} 
+                              alt="" 
+                              className="w-4 h-4 mr-2 inline-block"
+                              onError={(e) => e.currentTarget.style.display = 'none'}
+                            />
+                          )}
+                          {preset.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label>Favicon</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={settings.aboutBlankFavicon || ''}
+                    onChange={(e) => setSettings(prev => ({ ...prev, aboutBlankFavicon: e.target.value }))}
+                    placeholder="Enter favicon URL..."
+                    className="flex-1"
+                  />
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      const newSettings = { ...settings };
+                      localStorage.setItem('hideout_settings', JSON.stringify(newSettings));
+                      toast.success("Favicon saved");
+                    }}
+                  >
+                    Set
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Tab Name</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={settings.aboutBlankTabName || ''}
+                    onChange={(e) => setSettings(prev => ({ ...prev, aboutBlankTabName: e.target.value }))}
+                    placeholder="Enter tab name..."
+                    className="flex-1"
+                  />
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      const newSettings = { ...settings };
+                      localStorage.setItem('hideout_settings', JSON.stringify(newSettings));
+                      toast.success("Tab name saved");
+                    }}
+                  >
+                    Set
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+
           {/* Reset Button */}
           <div className="flex justify-end">
             <Button variant="outline" onClick={handleResetDefaults}>Reset to Defaults</Button>
@@ -631,6 +734,36 @@ const SettingsPage = () => {
         </div>
       </main>
 
+      {/* Clear Data Warning Dialog */}
+      <AlertDialog open={showClearDataDialog} onOpenChange={setShowClearDataDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>This will permanently delete:</p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>All local storage data</li>
+                <li>All cookies</li>
+                <li>All session storage</li>
+                <li>All cached data</li>
+                <li>All IndexedDB databases</li>
+              </ul>
+              <p className="font-semibold text-destructive mt-4">
+                This action cannot be undone. You will be logged out and the page will reload.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleClearData}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Clear All Data
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
